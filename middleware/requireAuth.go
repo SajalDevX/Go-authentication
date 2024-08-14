@@ -2,20 +2,22 @@ package middleware
 
 import (
 	"fmt"
-	"main-module/initializers"
-	"main-module/models"
 	"net/http"
 	"os"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"main-module/initializers"
+	"main-module/models"
 )
 
 func RequireAuth(c *gin.Context) {
 	// Get the cookie from the request
 	tokenString, err := c.Cookie("Authorization")
 	if err != nil {
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No authorization token provided"})
+		c.Abort()
 		return
 	}
 
@@ -25,7 +27,6 @@ func RequireAuth(c *gin.Context) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-
 		// Return the secret for validation
 		return []byte(os.Getenv("SECRET")), nil
 	})
@@ -33,26 +34,25 @@ func RequireAuth(c *gin.Context) {
 	// Check if the token is valid and the claims are of type jwt.MapClaims
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		// Check if the token is expired
-		if exp, ok := claims["exp"].(float64); ok {
-			if float64(time.Now().Unix()) > exp {
-				c.AbortWithStatus(http.StatusUnauthorized)
-				return
-			}
-		} else {
-			c.AbortWithStatus(http.StatusUnauthorized)
+		exp, expOk := claims["exp"].(float64)
+		if !expOk || float64(time.Now().Unix()) > exp {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
+			c.Abort()
 			return
 		}
 
 		// Find the user based on the `sub` claim
 		var user models.User
-		if sub, ok := claims["sub"].(float64); ok {
-			initializers.DB.First(&user, uint(sub))
-			if user.ID == 0 {
-				c.AbortWithStatus(http.StatusUnauthorized)
-				return
-			}
-		} else {
-			c.AbortWithStatus(http.StatusUnauthorized)
+		sub, subOk := claims["sub"].(float64)
+		if !subOk {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token subject"})
+			c.Abort()
+			return
+		}
+		initializers.DB.First(&user, uint(sub))
+		if user.ID == 0 {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			c.Abort()
 			return
 		}
 
@@ -63,7 +63,8 @@ func RequireAuth(c *gin.Context) {
 		c.Next()
 
 	} else {
-		c.AbortWithStatus(http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		c.Abort()
 		return
 	}
 }

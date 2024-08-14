@@ -17,6 +17,7 @@ func main() {
 	r := gin.Default()
 	r.POST("/signup",controllers.Signup)
 	r.POST("/login",controllers.Login)
-	r.GET("/validate",middleware.RequireAuth,controllers.Validate)
+	r.GET("/admin",middleware.RequireAuth, middleware.RoleMiddleware("admin"), controllers.AdminRoute)
+	r.GET("/seller", middleware.RequireAuth,middleware.RoleMiddleware("seller"), controllers.SellerRoute)
 	r.Run()
 }
