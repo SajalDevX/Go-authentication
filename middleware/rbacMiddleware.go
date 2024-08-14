@@ -1,13 +1,18 @@
 package middleware
 
 import (
-    "net/http"
-    "os"
-    "github.com/gin-gonic/gin"
-    "github.com/golang-jwt/jwt/v4"
+	roles "main-module/middleware/role"
+	"net/http"
+	"os"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v4"
 )
 
-func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
+
+
+
+func RoleMiddleware(allowedRoles ...roles.Role) gin.HandlerFunc {
     return func(c *gin.Context) {
         tokenString, err := c.Cookie("Authorization")
         if err != nil {
@@ -33,7 +38,8 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
             return
         }
 
-        userRole := claims["role"].(string)
+        userRoleStr := claims["role"].(string)
+		userRole :=roles.Role(userRoleStr)
         for _, role := range allowedRoles {
             if role == userRole {
                 c.Next()

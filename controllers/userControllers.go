@@ -51,28 +51,28 @@ func Signup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User created successfully"})
 }
 
+
 func Login(c *gin.Context) {
-	// Get the email/pass off the req body
+	// Get the email and password from the request body
 	var body struct {
 		Email    string `json:"email" binding:"required"`
-		Password string `json:"email" binding:"required"`
+		Password string `json:"password" binding:"required"` // Fixed the binding tag from "email" to "password"
 	}
 
-	if c.Bind(&body) != nil {
+	if err := c.BindJSON(&body); err != nil { // Changed c.Bind to c.BindJSON for better error handling
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read body"})
 		return
 	}
 
-	// Look up the requested user
+	// Look up the user by email
 	var user models.User
-	initializers.DB.First(&user, "email = ?", body.Email)
-
-	if user.ID == 0 {
+	result := initializers.DB.First(&user, "email = ?", body.Email)
+	if result.Error != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	// Compare l̥sent-in pass with saved user pass hash
+	// Compare the provided password with the saved hashed password
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
@@ -93,10 +93,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Send it back
+	// Send it back in a cookie
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
-	// Secure: true in production
+	c.SetCookie("Authorization", tokenString, 3600*24*30, "/", "", false, true) // Path added for proper scope
 	c.JSON(http.StatusOK, gin.H{"message": "Logged in successfully"})
 }
 
